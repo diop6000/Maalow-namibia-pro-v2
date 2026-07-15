@@ -1,0 +1,5 @@
+# Local Supabase config (contains the anon key — regenerate from config.example.js)
+config.js
+
+.DS_Store
+*.log

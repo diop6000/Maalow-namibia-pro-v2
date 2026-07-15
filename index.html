@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maalow Admin — Payment Reconciliation</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Login view -->
+  <main id="login-view" class="login-view" hidden>
+    <form id="login-form" class="login-card" autocomplete="on">
+      <div class="brand"><span class="brand-mark">◆</span> Maalow <span class="brand-sub">Admin</span></div>
+      <p class="login-hint">Payment reconciliation — admins only.</p>
+      <label>Email
+        <input id="email" type="email" required placeholder="you@example.com" autocomplete="username" />
+      </label>
+      <label>Password
+        <input id="password" type="password" required placeholder="••••••••" autocomplete="current-password" />
+      </label>
+      <button id="login-btn" type="submit">Sign in</button>
+      <p id="login-error" class="login-error" role="alert"></p>
+    </form>
+  </main>
+
+  <!-- App view -->
+  <div id="app-view" hidden>
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">◆</span> Maalow <span class="brand-sub">Admin</span></div>
+      <div class="topbar-right">
+        <span id="who" class="who"></span>
+        <button id="refresh-btn" class="ghost" title="Reload">↻ Refresh</button>
+        <button id="signout-btn" class="ghost">Sign out</button>
+      </div>
+    </header>
+
+    <!-- Live realtime banner -->
+    <div id="banner" class="banner" hidden>
+      <span id="banner-text"></span>
+      <button id="banner-dismiss" class="banner-x" aria-label="Dismiss">✕</button>
+    </div>
+
+    <section class="dash">
+      <div class="card"><div class="card-label">Collected revenue</div><div id="m-revenue" class="card-value">—</div><div class="card-sub" id="m-revenue-sub"></div></div>
+      <div class="card"><div class="card-label">Commission (<span id="m-rate">15</span>%)</div><div id="m-commission" class="card-value">—</div></div>
+      <div class="card"><div class="card-label">Payouts pending</div><div id="m-pending" class="card-value accent-pending">—</div><div class="card-sub" id="m-pending-sub"></div></div>
+      <div class="card"><div class="card-label">Payouts sent</div><div id="m-sent" class="card-value accent-paid">—</div></div>
+    </section>
+
+    <section class="table-wrap">
+      <div class="table-head">
+        <h2>Bookings</h2>
+        <span id="row-count" class="muted"></span>
+      </div>
+      <div id="table-status" class="table-status"></div>
+      <table id="bookings-table">
+        <thead>
+          <tr>
+            <th>Client</th><th>Tradesperson</th><th>Category</th><th class="num">Amount</th>
+            <th>Payment</th><th>Scheduled</th><th>Ledger</th><th>Log event</th>
+          </tr>
+        </thead>
+        <tbody id="bookings-body"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
