@@ -26,10 +26,10 @@
 > queries return **200** against the current schema, the page boots with **zero console
 > errors**, and supabase-js still loads from the CDN.
 >
-> ⚠️ **Known gap (not breakage):** because the column list is explicit, the tool **never
-> surfaces `bookings.is_urgent`** — an urgent/ASAP booking is indistinguishable from a
-> scheduled one in the reconciliation table. Worth adding when convenient: include `is_urgent`
-> in the `bookings` select in `app.js` (~line 95) and render a badge.
+> ✅ **The `is_urgent` gap is CLOSED (2026-08-08)** — see §6 below. The `bookings` select now
+> includes `is_urgent`, the table marks urgent rows, and the realtime banner says so.
+> The same commit added the two missing `CATEGORY_LABELS` entries (`carpentry` from `0004`,
+> `roadside_assistance` from `0007`), which were printing the raw enum value.
 >
 > ⚠️ **Unverified:** the populated dashboard/table rendering was **not** re-checked while
 > signed in, because that needs the `is_admin` account's password. Only the login screen and
@@ -190,6 +190,34 @@ in the initial commit `341523c` (already on GitHub).
    (step-by-step guide in `../maalow-pro/HANDOFF.md` §8) to alert the team on every new
    `awaiting_confirmation`; and add an in-tool way to promote/demote admins (currently
    SQL-only). Optionally vendor supabase-js locally to drop the CDN dependency.
+
+---
+
+## 6. Urgent bookings surfaced in reconciliation — 2026-08-08
+
+Closes the gap both handoffs had flagged. Rationale in `../maalow-pro/DECISIONS.md` **AD10**.
+
+| Change | Where |
+|---|---|
+| `is_urgent` added to the `bookings` select | `app.js` `loadData()` |
+| **Urgent** chip beside the category | `app.js` `renderTable()` + `.chip-urgent` in `styles.css` |
+| Scheduled cell prefixed **`ASAP · `** for urgent rows | `app.js` `renderTable()` |
+| Realtime banner prefixed **`⚡ URGENT · `** | `app.js` `onPaymentPending()` |
+| `carpentry` + `roadside_assistance` labels | `app.js` `CATEGORY_LABELS` |
+
+The chip is deliberately **outlined**, not a filled pill, so it can never be mistaken for a
+payment-status pill; its colour is `--urgent: #2E6C99`, the same trust-blue as the mobile
+app's `UrgentBadge` (never green, never red — urgent means time-sensitive, not alarm).
+
+**Verified (2026-08-08):** the page boots with **zero console errors**; the new select returns
+**HTTP 200** against the live DB, and a control request with a bogus column returns
+**400 / `42703`** — so the 200 proves `is_urgent` really is selectable, it isn't a silently
+ignored field. The chip computes to `rgb(46, 108, 153)` on white with a matching border,
+renders 60×20 inline in the Category cell, and the table does not overflow horizontally.
+
+⚠️ **Still not verified while signed in** (unchanged from the note above): rendering against
+*real* urgent rows needs the `is_admin` account's password. The markup and CSS were checked
+with injected rows. Sign in once and eyeball a real ASAP booking to close this out.
 
 ---
 

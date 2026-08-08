@@ -6,9 +6,12 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, COMMISSION_RATE } from './config.js';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Keep in sync with `trade_category` in the DB. `carpentry` came from migration 0004 and
+// `roadside_assistance` from 0007 — without them those rows printed the raw enum value.
 const CATEGORY_LABELS = {
   plumbing: 'Plumbing', electrical: 'Electrical', painting: 'Painting',
   ac: 'AC', handyman: 'Handyman', cleaning: 'Cleaning',
+  carpentry: 'Carpentry', roadside_assistance: 'Roadside Assistance',
 };
 const EVENT_LABELS = {
   easywallet_received: 'EasyWallet received',
@@ -92,7 +95,7 @@ async function loadData() {
   const [profilesRes, bookingsRes, eventsRes] = await Promise.all([
     supabase.from('profiles').select('id, full_name'),
     supabase.from('bookings')
-      .select('id, client_id, tradesperson_id, category, price_nad_cents, payment_status, status, scheduled_at, created_at')
+      .select('id, client_id, tradesperson_id, category, price_nad_cents, payment_status, status, scheduled_at, created_at, is_urgent')
       .order('created_at', { ascending: false }),
     supabase.from('payment_events')
       .select('booking_id, event_type, note, actor_id, created_at')
@@ -148,10 +151,10 @@ function renderTable(bookings, eventsByBooking) {
     tr.innerHTML = `
       <td class="name">${esc(nameOf(b.client_id))}</td>
       <td>${esc(nameOf(b.tradesperson_id))}</td>
-      <td>${CATEGORY_LABELS[b.category] || esc(b.category)}</td>
+      <td>${CATEGORY_LABELS[b.category] || esc(b.category)}${b.is_urgent ? ' <span class="chip-urgent">Urgent</span>' : ''}</td>
       <td class="num amount">${fmtNAD(b.price_nad_cents)}</td>
       <td><span class="pill ${b.payment_status}">${statusLabel(b.payment_status)}</span></td>
-      <td>${fmtDate(b.scheduled_at)}</td>
+      <td>${b.is_urgent ? 'ASAP · ' : ''}${fmtDate(b.scheduled_at)}</td>
       <td>${ledgerHtml(events)}</td>
       <td></td>`;
     tr.lastElementChild.appendChild(logControl(b.id));
@@ -214,7 +217,10 @@ function subscribeRealtime() {
 
 function onPaymentPending(booking) {
   const client = nameOf(booking.client_id);
-  showBanner(`💸 Payment pending confirmation — ${client}, ${fmtNAD(booking.price_nad_cents)}`);
+  // REPLICA IDENTITY FULL (migration 0003) means the payload carries every column, so the
+  // urgent flag is available here too — worth saying, since an ASAP job is time-sensitive.
+  const urgent = booking.is_urgent ? '⚡ URGENT · ' : '';
+  showBanner(`${urgent}💸 Payment pending confirmation — ${client}, ${fmtNAD(booking.price_nad_cents)}`);
   beep();
   loadData(); // refresh table + dashboard so the new pending row appears
 }

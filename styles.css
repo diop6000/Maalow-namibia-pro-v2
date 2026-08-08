@@ -9,6 +9,7 @@
   --pending: #E8833A;   /* awaiting_confirmation */
   --paid: #2E6C99;      /* paid — trust-blue, never green */
   --unpaid: #9AA0A6;
+  --urgent: #2E6C99;    /* is_urgent — same trust-blue as the app's UrgentBadge, never red */
 }
 
 * { box-sizing: border-box; }
@@ -111,6 +112,15 @@ tbody tr.row-pending { background: #FFF9F2; }
 .pill.unpaid { background: var(--unpaid); }
 .pill.awaiting_confirmation { background: var(--pending); }
 .pill.paid { background: var(--paid); }
+
+/* urgent chip — outlined, NOT a filled pill, so it never reads as a payment status.
+   Trust-blue like the mobile app's UrgentBadge: urgent means time-sensitive, not alarm. */
+.chip-urgent {
+  display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 999px;
+  border: 1px solid var(--urgent); color: var(--urgent); background: #fff;
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+  white-space: nowrap; vertical-align: middle;
+}
 
 /* ledger badges */
 .ledger { display: flex; flex-direction: column; gap: 3px; }
