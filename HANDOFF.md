@@ -6,7 +6,36 @@
 
 ---
 
-## Repo & session state (as of 2026-07-16) — READ FIRST
+## Repo & session state (as of 2026-08-07) — READ FIRST
+
+> **2026-08-07 — this tool is UNCHANGED, still at `4d53327`, clean and pushed. No action
+> needed here.** But the **shared database has moved on a lot** since this file was written,
+> so read this before assuming the schema stops at `0003`.
+>
+> Migrations `0004`–`0008` were added by the mobile app and are **all applied live**:
+> | Migration | Adds |
+> |---|---|
+> | `0004` | `trade_category` value `carpentry` |
+> | `0005` | `city` enum + `trades.city`; `profiles.company` |
+> | `0006` | `profiles.is_available_now`, `bookings.is_urgent` + a SECURITY DEFINER trigger |
+> | `0007` | `trade_category` value `roadside_assistance` |
+> | `0008` | rewrites `recompute_trade_rating` to scope ratings **per category** (+ backfill) |
+>
+> **Verified 2026-08-06 that none of this breaks the admin tool:** it selects **explicit
+> column lists** (not `select *`), so additive columns can't affect it. All four of its
+> queries return **200** against the current schema, the page boots with **zero console
+> errors**, and supabase-js still loads from the CDN.
+>
+> ⚠️ **Known gap (not breakage):** because the column list is explicit, the tool **never
+> surfaces `bookings.is_urgent`** — an urgent/ASAP booking is indistinguishable from a
+> scheduled one in the reconciliation table. Worth adding when convenient: include `is_urgent`
+> in the `bookings` select in `app.js` (~line 95) and render a badge.
+>
+> ⚠️ **Unverified:** the populated dashboard/table rendering was **not** re-checked while
+> signed in, because that needs the `is_admin` account's password. Only the login screen and
+> the query shapes were verified. Sign in as an admin and eyeball the table to close this out.
+
+## Earlier repo & session state (as of 2026-07-16)
 
 | Field | Value |
 |---|---|
