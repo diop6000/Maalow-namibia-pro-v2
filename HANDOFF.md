@@ -97,7 +97,8 @@ Driven through the real UI against the live DB as `cheikhlaurent@hotmail.com`:
 - **Login + admin gate** — Supabase email/password. After login the app reads the caller's
   own `profiles.is_admin`; non-admins are signed out with *"This account is not authorized"*
   (UI convenience). The real boundary is **RLS** (see §2).
-- **Dashboard** — Collected revenue, Commission (15%), Payouts pending, Payouts sent.
+- **Dashboard** — Collected revenue, Commission, Payouts pending, Payouts sent. (Commission
+  was a flat 15% when this was verified; it is now per-booking and tiered — see §7.)
   Verified: after a booking went `paid`, showed Revenue N$435 / Commission N$65 /
   Pending N$370, and after logging *Payout sent* → Pending N$0 / Sent N$370.
 - **Bookings table** — client, tradesperson, category, amount, payment status pill,
@@ -132,9 +133,12 @@ it never shows fake data.
 - **Server-side security = RLS + the `is_admin()` function** (migration `0003`). The anon
   key in `config.js` is public-by-design; non-admins get nothing from the ledger/all-bookings
   even if they open the page. The in-page login check is convenience, not the boundary.
-- **Placeholder:** `COMMISSION_RATE = 0.15` in `config.js` (dashboard math: payout =
-  amount × (1 − rate); revenue = Σ paid bookings; commission = revenue × rate). Set the
-  real rate when known.
+- **Commission (real, since migration `0009`):** the DB assigns each booking a rate when it
+  is paid, from that tradesperson's own paid-booking count (**0% for 1–10, 6% for 11–30, 12%
+  for 31+**), and freezes it on the row. The panel reads it; it never computes it.
+  `COMMISSION_RATE` in `config.js` is now only the fallback for rows with no stored rate.
+  Dashboard math: revenue = Σ paid bookings; commission = Σ (each booking × **its own**
+  rate); payout = amount − that booking's commission. See §7.
 
 ---
 
@@ -161,7 +165,9 @@ in the initial commit `341523c` (already on GitHub).
 - **`config.js` must exist in any deployed copy.** It's gitignored, so a clone/deploy has
   no `config.js` until you recreate it (copy from `config.example.js` + fill values, or
   inject at the host). Without it the page errors on the `import`.
-- **`COMMISSION_RATE` is a placeholder** (0.15) — confirm the real business rate.
+- **`COMMISSION_RATE` no longer sets what anyone is charged** (migration `0009` does) — but
+  it still lives in the gitignored `config.js`, so each deployed copy has its own. A stale
+  one only affects how rows *with no stored rate* are displayed, not the money itself.
 - **No admin-management UI.** Promote/demote is SQL-only:
   `update public.profiles set is_admin = true where id = (select id from auth.users where email = '…');`
   (run in the SQL editor; the `prevent_self_admin` trigger blocks doing it via the API).
@@ -171,8 +177,18 @@ in the initial commit `341523c` (already on GitHub).
   have audio throttled by the browser (banner still shows).
 - **CDN dependency:** supabase-js is pulled from `esm.sh` at runtime — needs internet and
   esm.sh availability. For a hardened deploy, vendor the library locally instead.
-- **Test data:** live DB has leftover `@maalowtest.dev` rows from verification. Clean with
-  `delete from auth.users where email like '%@maalowtest.dev';` (in the mobile app's DB).
+- **Test data:** live DB has leftover `@maalowtest.dev` rows from verification, including
+  **33 throwaway bookings** from the 2026-08-08 urgent-badge and commission-tier checks.
+  Clean all of it with `delete from auth.users where email like '%@maalowtest.dev';`, or just
+  the 2026-08-08 rows with:
+  ```sql
+  delete from auth.users where email in (
+    'urgent-badge-client@maalowtest.dev', 'urgent-badge-pro@maalowtest.dev',
+    'tier-check-client@maalowtest.dev',   'tier-check-pro@maalowtest.dev');
+  ```
+  (`profiles` cascades from `auth.users`; `trades`/`bookings` cascade from `profiles`.)
+  ⚠️ Until deleted, those 31 paid bookings inflate the dashboard by N$ 3 100 revenue /
+  N$ 132 commission.
 
 ---
 
@@ -183,9 +199,10 @@ in the initial commit `341523c` (already on GitHub).
    on the host (it's gitignored). Consider access control beyond RLS (e.g. a separate
    private deploy / basic auth), since the URL would be public even though data is
    RLS-protected.
-2. **Business-correctness pass:** set the real `COMMISSION_RATE`, confirm the payout/revenue
-   definitions match how Maalow actually pays out, and add practical dashboard affordances
-   (date-range filter, a "seen"/dismiss state per banced booking, sort/search on the table).
+2. **Business-correctness pass:** confirm the payout/revenue definitions match how Maalow
+   actually pays out, decide the Phase-1 retroactivity question (§7), and add practical
+   dashboard affordances (date-range filter, a "seen"/dismiss state per banner booking,
+   sort/search on the table).
 3. **Notifications + admin management:** wire the **Supabase Database Webhook → Make.com**
    (step-by-step guide in `../maalow-pro/HANDOFF.md` §8) to alert the team on every new
    `awaiting_confirmation`; and add an in-tool way to promote/demote admins (currently
@@ -218,6 +235,71 @@ renders 60×20 inline in the Category cell, and the table does not overflow hori
 ⚠️ **Still not verified while signed in** (unchanged from the note above): rendering against
 *real* urgent rows needs the `is_admin` account's password. The markup and CSS were checked
 with injected rows. Sign in once and eyeball a real ASAP booking to close this out.
+
+---
+
+## 7. Tiered commission — 2026-08-08
+
+> An earlier version of this section described a flat `COMMISSION_RATE` you bumped by hand
+> (Phase 0 = 0%). **That is gone.** The rate is now decided by the database per booking.
+> Rationale in `../maalow-pro/DECISIONS.md` **AD12–AD14**.
+
+Each booking is charged according to how many bookings **that tradesperson** has already
+been paid for. The rate is decided at the moment the booking is marked paid and **frozen on
+the row**, so crossing a tier never re-prices history.
+
+| Tier | That pro's paid bookings | Rate |
+|---|---|---|
+| 0 | 1–10 | 0% |
+| 1 | 11–30 | 6% |
+| 2 | 31+ | 12% |
+
+**Where the logic lives:** `supabase/migrations/0009_commission_tiers.sql` in the mobile-app
+repo — `commission_tier_for_position` / `commission_rate_for_tier` (the thresholds) and the
+`bookings_set_commission_on_paid` trigger. **Changing the tiers is a migration, not a config
+edit** — that is deliberate (AD13). The trigger also blocks either party from rewriting a
+stored rate through the API.
+
+**What this panel does with it:** selects `commission_rate` + `commission_tier`, shows a
+per-booking **Commission** column (amount, rate, `T0/T1/T2`), and sums the dashboard's
+commission total **per booking from each row's own rate** — never one blended rate applied to
+total revenue, which would be wrong the moment two pros sit in different tiers. The card's
+sub-line reports the blended rate as an *outcome*. Payout per booking is the remainder
+(`amount − commission`), not `amount × (1 − rate)`, so rounding always reconciles.
+
+⚠️ **`COMMISSION_RATE` in `config.js` is no longer the rate.** It is only the display
+fallback for a row with no stored rate, and it is set to the **top** tier (`0.12`) on purpose
+so a missing rate over-reports rather than under-reports. Rows using it are labelled
+`default` in the table and counted in the commission card's sub-line.
+
+**Pre-migration behaviour:** if `0009` isn't applied, the commission columns don't exist and
+PostgREST fails the *whole* select with `42703` — which would blank the table. The panel
+retries without those columns, falls back to the default rate, and says so in a warning above
+the table. Verified: the pre-migration error really is `42703`.
+
+### Verified live — 2026-08-08, migration applied
+
+One throwaway tradesperson taken through **31 bookings**, each driven
+`unpaid → awaiting_confirmation → paid` in order. Every boundary landed correctly and
+**0 of 31 mismatched**:
+
+| Position | Tier | Stored rate |
+|---|---|---|
+| 1, 9, **10** | 0 | `0.000` |
+| **11**, 12, 29, **30** | 1 | `0.060` |
+| **31** | 2 | `0.120` |
+
+Distribution: 10 rows tier 0 · 20 tier 1 · 1 tier 2.
+
+**The stored rates make a real difference to the dashboard** — on that data (N$ 3 100
+revenue) the per-booking sum is **N$ 132** commission (4.3% blended, N$ 2 968 payouts),
+where the old flat-constant code would have reported **N$ 372** at the 12% default:
+**N$ 240 overstated**.
+
+**Tamper attempt:** as the *client*, `PATCH commission_rate = 0` on the tier-1 booking
+returned HTTP 200 and the stored rate was **still `0.060`** afterwards. The trigger's
+else-branch silently restores the value rather than raising — the write appears to succeed
+and simply has no effect. Worth knowing if you ever debug a "why didn't my update stick".
 
 ---
 

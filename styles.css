@@ -122,6 +122,14 @@ tbody tr.row-pending { background: #FFF9F2; }
   white-space: nowrap; vertical-align: middle;
 }
 
+/* per-booking commission cell */
+.rate-pct { font-size: 11px; font-weight: 700; }
+.rate-tier { font-size: 10px; }
+.rate-default {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px;
+  color: var(--pending); border-bottom: 1px dotted var(--pending); cursor: help;
+}
+
 /* ledger badges */
 .ledger { display: flex; flex-direction: column; gap: 3px; }
 .badge { font-size: 11px; color: var(--muted); }
