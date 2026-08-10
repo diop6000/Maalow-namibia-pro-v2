@@ -11,7 +11,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const CATEGORY_LABELS = {
   plumbing: 'Plumbing', electrical: 'Electrical', painting: 'Painting',
   ac: 'AC', handyman: 'Handyman', cleaning: 'Cleaning',
-  carpentry: 'Carpentry', roadside_assistance: 'Roadside Assistance',
+  carpentry: 'Carpentry', roadside_assistance: 'Auto Assistance',
 };
 const EVENT_LABELS = {
   easywallet_received: 'EasyWallet received',
