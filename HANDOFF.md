@@ -194,11 +194,12 @@ in the initial commit `341523c` (already on GitHub).
 
 ## 5. Next 3 steps (admin tool)
 
-1. **Deploy it to a static host** (Netlify/Cloudflare Pages/etc.) so admins can use it off
-   this machine — currently only runs locally via `npx serve`. Remember to add `config.js`
-   on the host (it's gitignored). Consider access control beyond RLS (e.g. a separate
-   private deploy / basic auth), since the URL would be public even though data is
-   RLS-protected.
+1. ~~**Deploy it to a static host**~~ — **DONE 2026-08-14.** Live at
+   **https://maalow-admin-na.netlify.app** (Netlify project `maalow-admin-na`,
+   id `e22a50c5-0ab4-4b6a-8571-e7cb863e69a6`). See §8 for how to redeploy — there are two
+   traps. **Access control is still RLS only**: the URL is public and anyone may load the
+   login page; non-admins simply get nothing. Consider Netlify password protection or an
+   allowlist before this holds real customer data.
 2. **Business-correctness pass:** confirm the payout/revenue definitions match how Maalow
    actually pays out, decide the Phase-1 retroactivity question (§7), and add practical
    dashboard affordances (date-range filter, a "seen"/dismiss state per banner booking,
@@ -300,6 +301,42 @@ where the old flat-constant code would have reported **N$ 372** at the 12% defau
 returned HTTP 200 and the stored rate was **still `0.060`** afterwards. The trigger's
 else-branch silently restores the value rather than raising — the write appears to succeed
 and simply has no effect. Worth knowing if you ever debug a "why didn't my update stick".
+
+---
+
+## 8. Deploy — 2026-08-14
+
+Live: **https://maalow-admin-na.netlify.app** · project `maalow-admin-na` ·
+id `e22a50c5-0ab4-4b6a-8571-e7cb863e69a6`.
+
+**Two traps, both easy to hit:**
+
+1. **This folder is linked to the WRONG Netlify project.** A `netlify.toml` at the repo root
+   makes the CLI resolve the working directory to `maalow-transport` (a different app). A
+   bare `netlify deploy --prod` from here would overwrite it. **Always pass `--site` explicitly.**
+2. **Deploy a staged copy, not this folder.** `HANDOFF.md`, `README.md` and
+   `config.example.js` would otherwise be served publicly — they document the schema, the
+   project ref and the known gaps. Copy only the four runtime files.
+
+```bash
+mkdir -p /tmp/admin-deploy && cp index.html app.js styles.css config.js /tmp/admin-deploy/
+npx netlify deploy --prod --dir=/tmp/admin-deploy --site e22a50c5-0ab4-4b6a-8571-e7cb863e69a6 --no-build
+```
+
+`config.js` is gitignored, so it is **not** in the repo and a fresh clone must recreate it
+from `config.example.js` before deploying, or the page dies on the `import`.
+
+The deploy adds a `netlify.toml` with `X-Robots-Tag: noindex`, `X-Frame-Options: DENY` and
+`Referrer-Policy: no-referrer` — the panel should not be indexed or framed.
+
+**Verified live:** login card renders, `config.js` loads the right project (`ozjzeqrjyqpxoyakuusz`),
+all nine table headers present including **Commission**, zero console errors. Unknown paths
+fall back to `index.html` — so the docs are genuinely absent, not merely unlinked.
+
+### Promoting an admin
+The in-tool gate reads `profiles.is_admin`; the real boundary is the `0003` RLS policies. The
+`prevent_self_admin` trigger blocks promotion via the API, so it is SQL-editor only — see the
+Quick reference below.
 
 ---
 
