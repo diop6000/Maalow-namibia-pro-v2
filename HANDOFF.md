@@ -197,9 +197,11 @@ in the initial commit `341523c` (already on GitHub).
 1. ~~**Deploy it to a static host**~~ — **DONE 2026-08-14.** Live at
    **https://maalow-admin-na.netlify.app** (Netlify project `maalow-admin-na`,
    id `e22a50c5-0ab4-4b6a-8571-e7cb863e69a6`). See §8 for how to redeploy — there are two
-   traps. **Access control is still RLS only**: the URL is public and anyone may load the
-   login page; non-admins simply get nothing. Consider Netlify password protection or an
-   allowlist before this holds real customer data.
+   traps. **Access control is RLS only, deliberately** — see `../maalow-pro/DECISIONS.md`
+   **AD15**: Netlify password protection needs the Pro plan ($20/mo), and "Private" on the
+   current Free team would lock everyone but the Team Owner out rather than gate them in.
+   Revisit when real customer data justifies the cost; prefer a separate Netlify team over a
+   shared password at that point.
 2. **Business-correctness pass:** confirm the payout/revenue definitions match how Maalow
    actually pays out, decide the Phase-1 retroactivity question (§7), and add practical
    dashboard affordances (date-range filter, a "seen"/dismiss state per banner booking,
