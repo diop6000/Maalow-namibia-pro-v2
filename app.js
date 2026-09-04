@@ -214,7 +214,7 @@ function renderTable(bookings, eventsByBooking) {
       <td>${b.is_urgent ? 'ASAP · ' : ''}${fmtDate(b.scheduled_at)}</td>
       <td>${ledgerHtml(events)}</td>
       <td></td>`;
-    tr.lastElementChild.appendChild(logControl(b.id));
+    tr.lastElementChild.appendChild(logControl(b.id, events));
     body.appendChild(tr);
   }
 }
@@ -242,7 +242,10 @@ function ledgerHtml(events) {
 }
 
 // A per-row "log event" control: dropdown + optional note + button.
-function logControl(bookingId) {
+//
+// `events` is THIS booking's ledger. `loadData` orders payment_events by created_at
+// descending, so the first entry matching a type is the most recent occurrence of it.
+function logControl(bookingId, events) {
   const wrap = document.createElement('div');
   wrap.className = 'logbox';
   const sel = document.createElement('select');
@@ -253,6 +256,25 @@ function logControl(bookingId) {
   const btn = document.createElement('button');
   btn.textContent = 'Log';
   btn.addEventListener('click', async () => {
+    // Duplicate guard. Logging the same event_type twice for one booking used to succeed
+    // silently — no warning, two identical ledger rows, and a payout that looks like it
+    // happened twice.
+    //
+    // It CONFIRMS rather than blocks, on purpose. `payment_events` is an append-only audit
+    // ledger: a genuine repeat exists (a second partial transfer, a re-sent payout), and the
+    // ledger's job is to record what happened, not to decide what is allowed. Blocking here
+    // would make the audit trail lie by omission. Same principle as the mobile app's AD5 —
+    // the ledger stays deliberately separate from enforcement.
+    //
+    // Checked BEFORE the button is disabled, so cancelling leaves the control usable.
+    const prior = events.find((e) => e.event_type === sel.value);
+    if (prior) {
+      const ok = confirm(
+        `${EVENT_LABELS[sel.value]} was already logged at ${fmtDate(prior.created_at)} — log it again?`,
+      );
+      if (!ok) return;
+    }
+
     btn.disabled = true; btn.textContent = '…';
     await logEvent(bookingId, sel.value, note.value.trim());
     // loadData() re-renders, so no need to reset this (now-detached) node.

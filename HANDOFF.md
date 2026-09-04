@@ -3,6 +3,11 @@
 > Read this first in a fresh session. This is the **separate admin tool**, not the mobile
 > app. Companion: the mobile app lives in `../maalow-pro/` (its own repo + `HANDOFF.md`),
 > and the two share ONE Supabase project.
+>
+> **Decisions for THIS tool now live in [`DECISIONS.md`](DECISIONS.md) here** (AD16+).
+> `AD1`–`AD15` predate it and remain in `../maalow-pro/DECISIONS.md` — notably **AD1**
+> (why this tool is framework-free) and **AD5** (why `payment_events` is an audit ledger
+> kept separate from `bookings.payment_status`).
 
 ---
 
@@ -339,6 +344,52 @@ fall back to `index.html` — so the docs are genuinely absent, not merely unlin
 The in-tool gate reads `profiles.is_admin`; the real boundary is the `0003` RLS policies. The
 `prevent_self_admin` trigger blocks promotion via the API, so it is SQL-editor only — see the
 Quick reference below.
+
+---
+
+## 9. Duplicate payment events — 2026-09-02
+
+Rationale in [DECISIONS.md](DECISIONS.md) **AD16–AD18**.
+
+**Was:** logging the same `event_type` twice for one booking succeeded **silently**. The live data
+still shows it — one booking carries three `EasyWallet received` and two `Payout sent` entries from
+a single session. Two `Payout sent` rows read exactly like a tradesperson paid twice, and nothing
+in the ledger distinguishes that from a double-click.
+
+**Now:** `logControl(bookingId, events)` checks the booking's ledger for the selected type and, if
+found, asks before inserting:
+
+> `EasyWallet received was already logged at 04 Sept 2026, 05:00 — log it again?`
+
+**It confirms, it does not block** — genuine repeats exist (a second partial transfer, a re-sent
+payout), and an audit ledger that refuses to record what happened is worse than one that records
+too much. Same principle as AD5: this table records, the DB trigger enforces.
+
+Covers both event types automatically (keyed off the dropdown value, not hardcoded). The check
+runs *before* the button is disabled, so cancelling leaves the control usable — the old code
+relied on `loadData()` re-rendering, which never happens on a cancel.
+
+### ⚠️ `confirm()` blocks browser automation — know this before testing
+
+A native dialog **freezes the renderer**. During verification, every automated command —
+screenshots, clicks, input — timed out until the dialog was dismissed by hand, and the dialog
+itself is browser chrome that screenshots do not capture. Automating this tool means driving that
+dialog through a CDP dialog handler, or accepting that the duplicate path needs a human click.
+Deliberate trade for a two-person internal tool (AD17).
+
+### Verified live — and the one branch that was not
+
+Signed in as a real `is_admin` account against live data: first log on an empty ledger → no
+dialog ✅ · same type again → dialog fires ✅ · abandoned → nothing written ✅ · **different type,
+same booking → no dialog, no freeze, badge and summary cards updated** ✅.
+
+That last one is the strongest result: same button, same row, same click sequence — freezing on a
+duplicate and passing straight through on a new type.
+
+⚠️ **NOT verified: the OK branch.** Confirming the dialog so the insert proceeds was never
+exercised. Sound by construction (it falls through to the same `logEvent` both successful logs
+used) but **untested** — recorded as such rather than counted as a pass. One human click closes
+it: duplicate an event type and press OK.
 
 ---
 
