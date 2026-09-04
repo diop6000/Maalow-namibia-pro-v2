@@ -381,15 +381,17 @@ Deliberate trade for a two-person internal tool (AD17).
 
 Signed in as a real `is_admin` account against live data: first log on an empty ledger → no
 dialog ✅ · same type again → dialog fires ✅ · abandoned → nothing written ✅ · **different type,
-same booking → no dialog, no freeze, badge and summary cards updated** ✅.
+same booking → no dialog, no freeze, badge and summary cards updated** ✅ · **confirm through the
+dialog → logs anyway** ✅.
 
-That last one is the strongest result: same button, same row, same click sequence — freezing on a
-duplicate and passing straight through on a new type.
+Two results carry the most weight. The different-type check: same button, same row, same click
+sequence — freezing on a duplicate and passing straight through on a new type. And the OK branch,
+**observed live by a manual click** — a 3rd `EasyWallet received` badge appeared on the Test 2
+Plombier row. Both branches are exercised: cancel writes nothing, OK writes the event.
 
-⚠️ **NOT verified: the OK branch.** Confirming the dialog so the insert proceeds was never
-exercised. Sound by construction (it falls through to the same `logEvent` both successful logs
-used) but **untested** — recorded as such rather than counted as a pass. One human click closes
-it: duplicate an event type and press OK.
+The OK branch had to be pressed by hand. Automation can prove the dialog opens (the renderer
+freeze is the evidence) but cannot press its buttons (AD17) — so this path is not
+script-regression-testable.
 
 ---
 

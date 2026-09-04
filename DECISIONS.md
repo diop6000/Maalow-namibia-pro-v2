@@ -67,7 +67,10 @@ Anything automating this tool must either drive that dialog through a CDP dialog
 that the duplicate path needs a human click. That is an acceptable trade for a two-person internal
 tool; it would not be for a user-facing one.
 
-### AD18 — What was verified live, and the one branch that was not
+The OK branch was ultimately closed exactly that way — **by hand** — see AD18. Automation could
+confirm the dialog *opens* (the freeze is the evidence) but never that pressing OK proceeds.
+
+### AD18 — What was verified live
 Verified on `localhost:5200`, signed in as a real `is_admin` account, against live Supabase data:
 
 | Check | Result |
@@ -76,13 +79,17 @@ Verified on `localhost:5200`, signed in as a real `is_admin` account, against li
 | Same type again → dialog fires | ✅ dialog opened (renderer blocked — that block *is* the evidence) |
 | Cancel / abandon → nothing written | ✅ row still showed exactly one badge afterwards |
 | Different type, same booking → no dialog | ✅ logged, **no dialog, no freeze**, badge + summary cards updated |
+| **Confirm through the dialog → logs anyway** | ✅ **observed live** — manual click; a 3rd `EasyWallet received` badge (5th overall) appeared on the Test 2 Plombier row |
 
-The last row is the strongest single result: the *same* button, the *same* row, the *same* click
-sequence — freezing on a duplicate type and passing straight through on a new one. The guard
-discriminates correctly, shown rather than asserted.
+The **different-type** row is the strongest single result: the *same* button, the *same* row, the
+*same* click sequence — freezing on a duplicate type and passing straight through on a new one.
+The guard discriminates correctly, shown rather than asserted.
 
-⚠️ **NOT verified: the OK branch.** Confirming the dialog and having the insert proceed was never
-exercised — the dialog was never dismissed, so it was aborted. It is sound by construction (the
-true branch falls through to the same `logEvent` call that both successful logs used), but it is
-**untested**, and is recorded that way rather than counted as a pass. Closing it needs one human
-click: duplicate an event type and press OK.
+✅ **The OK branch is confirmed, by observation — not merely by construction.** Confirming the
+dialog proceeds to `logEvent` and the row is written: a manual click produced a 3rd
+`EasyWallet received` badge (the 5th entry overall) on the Test 2 Plombier row. Both branches of
+the guard are therefore exercised end to end — cancel writes nothing, OK writes the event.
+
+It had to be done by hand: automation can prove the dialog *opens* (the renderer freeze is the
+evidence) but cannot press its buttons (AD17). Worth remembering next time this area is touched —
+the confirm path is not something a script can regression-test.
