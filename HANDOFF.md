@@ -323,22 +323,34 @@ id `e22a50c5-0ab4-4b6a-8571-e7cb863e69a6`.
    bare `netlify deploy --prod` from here would overwrite it. **Always pass `--site` explicitly.**
 2. **Deploy a staged copy, not this folder.** `HANDOFF.md`, `README.md` and
    `config.example.js` would otherwise be served publicly — they document the schema, the
-   project ref and the known gaps. Copy only the four runtime files.
+   project ref and the known gaps. Copy only the four runtime files **plus `_headers`**.
 
 ```bash
-mkdir -p /tmp/admin-deploy && cp index.html app.js styles.css config.js /tmp/admin-deploy/
+mkdir -p /tmp/admin-deploy && cp index.html app.js styles.css config.js _headers /tmp/admin-deploy/
 npx netlify deploy --prod --dir=/tmp/admin-deploy --site e22a50c5-0ab4-4b6a-8571-e7cb863e69a6 --no-build
 ```
 
 `config.js` is gitignored, so it is **not** in the repo and a fresh clone must recreate it
 from `config.example.js` before deploying, or the page dies on the `import`.
 
-The deploy adds a `netlify.toml` with `X-Robots-Tag: noindex`, `X-Frame-Options: DENY` and
-`Referrer-Policy: no-referrer` — the panel should not be indexed or framed.
+**Security headers come from `_headers`** (committed at the repo root, copied into the staged
+dir): `X-Robots-Tag: noindex`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, on `/*`.
+The panel should not be indexed or framed. **If `_headers` is left out of the `cp`, the headers
+silently disappear** — the deploy still succeeds.
+
+> ⚠️ **Until 2026-09-18 this section said the deploy "adds a `netlify.toml`" with these headers.
+> It never did.** The staged copy never contained any header config, and none of the three
+> headers were served. Fixed by adding `_headers`; verified live on 2026-09-18 (see §9). Check
+> with `curl -sI https://maalow-admin-na.netlify.app/`, not by reading this file.
 
 **Verified live:** login card renders, `config.js` loads the right project (`ozjzeqrjyqpxoyakuusz`),
-all nine table headers present including **Commission**, zero console errors. Unknown paths
-fall back to `index.html` — so the docs are genuinely absent, not merely unlinked.
+all nine table headers present including **Commission**, zero console errors.
+
+**Unknown paths return Netlify's default 404 page** (`<title>Page not found</title>`), **not**
+`index.html`. The docs are absent from the deploy, so `/HANDOFF.md`, `/DECISIONS.md`,
+`/README.md` and `/config.example.js` return a 404 and never their contents. (An earlier version
+of this file said unknown paths "fall back to `index.html`". That was wrong: the check read only
+the leading `<!DOCTYPE html>`, which both pages share. Check the `<title>` instead.)
 
 ### Promoting an admin
 The in-tool gate reads `profiles.is_admin`; the real boundary is the `0003` RLS policies. The
@@ -404,14 +416,21 @@ unique deploy URL, cache-busted) returned HTTP 200 and 17,664 bytes, contains
 `was already logged at` (1 match), and is **byte-identical** to `app.js` at HEAD (same sha256).
 `styles.css` and `config.js` are byte-identical, and `config.js` points at `ozjzeqrjyqpxoyakuusz`.
 `index.html` differs only by Netlify's own injected comment, meta tags and HUD script.
-`/HANDOFF.md` still falls back to `index.html`, so the docs are not served.
+`/HANDOFF.md` returns HTTP 404 with Netlify's "Page not found" page, so the docs are not served.
+(This line first said it "falls back to `index.html`", which was a misreading; see §8.)
 
-### ⚠️ The security headers in §8 are NOT live
-§8 says the deploy adds `X-Robots-Tag: noindex`, `X-Frame-Options: DENY` and
-`Referrer-Policy: no-referrer`. **The live responses carry none of them**, before or after this
-deploy. The documented command stages only the four runtime files, so no header config reaches
-Netlify. (A `netlify.toml` inside `--dir` is not read for headers; a `_headers` file in the
-published dir would be.) Not changed in this deploy. **Open item — needs a decision.**
+### Security headers — FIXED and verified live (2026-09-18)
+§8 documented `X-Robots-Tag: noindex`, `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`,
+but **none were ever served**: the staged copy contained no header config. Fixed by adding a
+`_headers` file with exactly those three values on `/*`, and adding it to the §8 `cp`.
+Redeployed as `6aad456bb7fae63e194df268`.
+
+**Verified from the live response headers (`curl -sI`), cache-busted:** all three are present on
+`/`, `/index.html`, `/app.js`, `/config.js`, on a 404 path, and on the unique deploy URL.
+`_headers` itself is not served (404). `app.js` still contains `was already logged at`.
+`/HANDOFF.md`, `/DECISIONS.md`, `/README.md`, `/_headers` and `/config.example.js` all return
+**HTTP 404 "Page not found"**, with no document contents. The same holds on the previous deploy
+(`6aad43ae…`), so `_headers` did not change it.
 
 ### Test rows from the 2026-09-02 verification — CLOSED
 The `payment_events` rows logged while verifying this guard (`easywallet_received` and
