@@ -393,6 +393,31 @@ The OK branch had to be pressed by hand. Automation can prove the dialog opens (
 freeze is the evidence) but cannot press its buttons (AD17) — so this path is not
 script-regression-testable.
 
+### Deployed — 2026-09-18
+The guard (`9b3ca72`) is **live on https://maalow-admin-na.netlify.app** (deploy
+`6aad43aefc3fafed2a99be66`). Until then it had only run on `localhost:5200`. Deployed with the §8
+staged-copy command (four runtime files, `--site` explicit). Netlify re-uploaded only `app.js`;
+the other three files were unchanged by hash.
+
+**Verified against the served file, not the CLI exit code:** the live `app.js` (production URL and
+unique deploy URL, cache-busted) returned HTTP 200 and 17,664 bytes, contains
+`was already logged at` (1 match), and is **byte-identical** to `app.js` at HEAD (same sha256).
+`styles.css` and `config.js` are byte-identical, and `config.js` points at `ozjzeqrjyqpxoyakuusz`.
+`index.html` differs only by Netlify's own injected comment, meta tags and HUD script.
+`/HANDOFF.md` still falls back to `index.html`, so the docs are not served.
+
+### ⚠️ The security headers in §8 are NOT live
+§8 says the deploy adds `X-Robots-Tag: noindex`, `X-Frame-Options: DENY` and
+`Referrer-Policy: no-referrer`. **The live responses carry none of them**, before or after this
+deploy. The documented command stages only the four runtime files, so no header config reaches
+Netlify. (A `netlify.toml` inside `--dir` is not read for headers; a `_headers` file in the
+published dir would be.) Not changed in this deploy. **Open item — needs a decision.**
+
+### Test rows from the 2026-09-02 verification — CLOSED
+The `payment_events` rows logged while verifying this guard (`easywallet_received` and
+`payout_sent` on kyc.check's N$5,021 booking) were **deleted manually in the SQL Editor** by the
+owner. Nothing is pending here.
+
 ---
 
 ## Quick reference
@@ -400,4 +425,4 @@ script-regression-testable.
 - **Migration that backs this tool:** `../maalow-pro/supabase/migrations/0003_admin_reconciliation.sql` (applied).
 - **Judgment calls / rationale:** `../maalow-pro/DECISIONS.md` (AD1–AD9).
 - **Supabase project ref:** `ozjzeqrjyqpxoyakuusz`.
-- **This repo:** `github.com/diop6000/Maalow-namibia-pro-v2` @ `341523c` (pushed, clean).
+- **This repo:** `github.com/diop6000/Maalow-namibia-pro-v2` — `main`, pushed. Last admin deploy: 2026-09-18 (§9).
