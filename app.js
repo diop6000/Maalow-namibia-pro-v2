@@ -291,11 +291,14 @@ async function logEvent(bookingId, eventType, note) {
   await loadData();
 }
 
-// ── Realtime: live banner + audio when a booking moves to awaiting_confirmation ─
+// ── Realtime: live banner + audio on the two events an admin must not miss ─────
+// One channel, two subscriptions: a payment awaiting confirmation, and a booking cancelled
+// after it was committed. Both rely on REPLICA IDENTITY FULL (0003) so `payload.old` carries
+// the previous row — without it neither transition could be told from a repeat update.
 function subscribeRealtime() {
   if (realtimeChannel) supabase.removeChannel(realtimeChannel);
   realtimeChannel = supabase
-    .channel('admin-payment-pending')
+    .channel('admin-booking-events')
     .on('postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'bookings', filter: 'payment_status=eq.awaiting_confirmation' },
       (payload) => {
@@ -303,7 +306,41 @@ function subscribeRealtime() {
         if (payload.old && payload.old.payment_status === 'awaiting_confirmation') return;
         onPaymentPending(payload.new);
       })
+    .on('postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'bookings', filter: 'status=eq.cancelled' },
+      (payload) => {
+        if (!payload.old || payload.old.status === 'cancelled') return; // repeat update
+        onBookingCancelled(payload.old, payload.new);
+      })
     .subscribe();
+}
+
+/**
+ * A cancellation only matters here once the job was COMMITTED — i.e. it had been accepted.
+ * Declining a still-`pending` request is the normal, blameless case and must stay silent,
+ * or the alert becomes noise and gets ignored.
+ *
+ * Two levels, because the two situations need different reactions:
+ *   money declared or paid → banner + BEEP: someone has to refund or chase it.
+ *   accepted but unpaid    → banner only: nothing to settle, but the client is stranded
+ *                            and may need help rebooking.
+ */
+function onBookingCancelled(before, after) {
+  const committed = before.status === 'accepted' || before.status === 'in_progress';
+  if (!committed) return;
+
+  const client = nameOf(after.client_id);
+  const pro = nameOf(after.tradesperson_id);
+  const urgent = after.is_urgent ? '⚡ URGENT · ' : '';
+  const moneyInvolved = after.payment_status !== 'unpaid';
+
+  if (moneyInvolved) {
+    showBanner(`${urgent}⛔ Cancelled after payment — ${client} ↔ ${pro}, ${fmtNAD(after.price_nad_cents)}`);
+    beep();
+  } else {
+    showBanner(`${urgent}⛔ Cancelled after acceptance — client may need rebooking help — ${client} ↔ ${pro}`);
+  }
+  loadData(); // refresh so the cancelled row and the dashboard totals are current
 }
 
 function onPaymentPending(booking) {
