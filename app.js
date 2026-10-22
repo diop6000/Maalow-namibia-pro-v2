@@ -367,6 +367,10 @@ function ensureAudio() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
   } catch { /* audio unavailable — banner still shows */ }
 }
+// Unlock audio on the first gesture of EVERY page load, not only at the sign-in click: a reload with a stored session never passes through the login form, so
+// `audioCtx` stayed null and the "payment pending" banner appeared in SILENCE (found 2026-10-22, while automating docs/ADMIN-CHECKLIST of the app repo).
+['pointerdown', 'keydown'].forEach((type) => document.addEventListener(type, ensureAudio, { once: true, passive: true }));
+
 function beep() {
   if (!audioCtx) return;
   const now = audioCtx.currentTime;
