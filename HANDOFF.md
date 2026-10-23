@@ -327,8 +327,17 @@ id `e22a50c5-0ab4-4b6a-8571-e7cb863e69a6`.
 
 ```bash
 mkdir -p /tmp/admin-deploy && cp index.html app.js styles.css config.js _headers /tmp/admin-deploy/
-npx netlify deploy --prod --dir=/tmp/admin-deploy --site e22a50c5-0ab4-4b6a-8571-e7cb863e69a6 --no-build
+cd /tmp/admin-deploy   # NOT from this repo: see trap 3
+npx netlify deploy --prod --dir=. --site e22a50c5-0ab4-4b6a-8571-e7cb863e69a6 --no-build
 ```
+
+3. **Run the CLI from the staged folder, not from this repo** (found 2026-10-23). From here the CLI also reads the `netlify.toml` of the PARENT folder (Maalow Transport) and ships its
+   `/* -> /index.html 200` redirect: every unknown path, `/HANDOFF.md` included, then answers **200 with the login page** instead of 404. No doc content leaks (it is the same login page),
+   but the documented behaviour is lost. The deploy summary tells: `getSiteDeploy` must say **"No redirect rules processed"** (`npx netlify api getSiteDeploy --data '{"site_id":"e22a50c5-0ab4-4b6a-8571-e7cb863e69a6","deploy_id":"<id>"}'`, read `summary.messages`).
+   Also: Netlify injects 4 lines into the served `index.html` (a "hosted on Netlify" comment and a `/.netlify/scripts/hud` script); `app.js`, `styles.css`, `config.js` are served byte-for-byte.
+
+**Deploy log:** 2026-10-23, `6adbea9a92a7bfe04f7806b6` (commit `68cb470`, the beep unlocked on the first gesture of every page load); previous `6ab7a3f12fc1f1c152a7da19` (2026-09-26). A first deploy of the same
+files the same day (`6adbea400d5258eb51471f81`) carried the leaked redirect and was replaced. Rollback = redeploy `6ab7a3f12fc1f1c152a7da19`.
 
 `config.js` is gitignored, so it is **not** in the repo and a fresh clone must recreate it
 from `config.example.js` before deploying, or the page dies on the `import`.
